@@ -65,13 +65,33 @@ void orangered_exit() {
     digitalWrite(c_LED_pin[1], LOW); 
     digitalWrite(c_LED_pin[2], LOW); 
 }
+// -------- All off ----------
+void all_off_enter() {
+    digitalWrite(c_LED_pin[0], LOW); 
+    digitalWrite(c_LED_pin[1], LOW); 
+    digitalWrite(c_LED_pin[2], LOW); 
+}
+// ------ Random LED ----------
+void random_enter() {
+  for(int i = 0; i < 3; i++){
+    if(random(2) >= 1){
+      digitalWrite(c_LED_pin[i], HIGH); 
+    }else
+    {
+      digitalWrite(c_LED_pin[i], LOW); 
+    }
+    
+  }
+}
 
 // State machine
+State state_all_off(&all_off_enter,NULL,NULL);
 State state_green(&green_enter,NULL,&green_exit);
 State state_orange(&orange_enter,NULL,&orange_exit);
 State state_red(&red_enter,NULL,&red_exit);
 State state_orangered(&orangered_enter,NULL,&orangered_exit);
-Fsm led_fsm(&state_green);
+State state_random(&random_enter,NULL,NULL);
+Fsm * led_fsm;
 
 /* Mode :
  *  - 0 Tricolore _fr
@@ -81,21 +101,6 @@ Fsm led_fsm(&state_green);
  */
 int current_mode = 0;
 int loop_cnt = 0;
-
-void press_button() {
-  if (digitalRead(c_interruptPin) == HIGH && !ButtonReleased){
-    ButtonReleased = true;
-    loop_cnt = 0;
-    Serial.println("ButtonReleased");
-  } 
-  Serial.println("press_button END");
-}
-
-void random_light(int Type_LED[]){
-  for(int i = 0; i < 3; i++){
-    Type_LED[i] = random(3);
-  }
-}
 
 void sleep_fct(){
   Serial.println("sleep_fct START");
@@ -130,140 +135,72 @@ void sleep_fct(){
 }
 
 void modeFr(){
-  led_fsm.add_timed_transition(&state_green,  &state_orange, 1000, NULL);
-  led_fsm.add_timed_transition(&state_orange, &state_red,    500,  NULL);
-  led_fsm.add_timed_transition(&state_red,    &state_green,  1000, NULL);
+  all_off_enter();
+  delete led_fsm;
+  led_fsm = new Fsm(&state_green);
+  led_fsm->add_timed_transition(&state_green,  &state_orange, 5000, NULL);
+  led_fsm->add_timed_transition(&state_orange, &state_red,    1000, NULL);
+  led_fsm->add_timed_transition(&state_red,    &state_green,  5000, NULL);
 }
 
-/*
-void avance_allumage(int Type_LED[]){
-  Serial.println("avance_allumage START");
-  //while(!ButtonReleased){
-  if(!ButtonReleased){
-    for(int i = 0; i < 3; i++){
-      if (LED_prev[i] == false && Type_LED[i] == c_type_ON)
-      {
-        // Power ON LED
-        digitalWrite(c_LED_pin[i], HIGH); 
-        LED_prev[i] = true;
-        Serial.print("LED ");
-        Serial.print(i);
-        Serial.println(" > HIGH");
-      }
-      if (LED_prev[i] == true && Type_LED[i] == c_type_OFF)
-      {
-        // Power OFF LED
-        digitalWrite(c_LED_pin[i], LOW); 
-        LED_prev[i] = false;
-        Serial.print("LED ");
-        Serial.print(i);
-        Serial.println(" > LOW");
-      }
-      if (Type_LED[i] == c_type_BLINK){
-        if (LED_prev[i] == false){
-          // Power ON LED
-          digitalWrite(c_LED_pin[i], HIGH); 
-          LED_prev[i] = true;
-          Serial.print("LED ");
-          Serial.print(i);
-          Serial.println(" > HIGH");
-        }else{
-          // Power OFF LED1
-          digitalWrite(c_LED_pin[i], LOW); 
-          LED_prev[i] = false;
-          Serial.print("LED ");
-          Serial.print(i);
-          Serial.println(" > LOW");
-        }
-      }
-    }
-  }  
-  Serial.println("avance_allumage END");
+void modeCh(){
+  all_off_enter();
+  delete led_fsm;
+  led_fsm = new Fsm(&state_green);
+  led_fsm->add_timed_transition(&state_green,  &state_orange,    5000, NULL);
+  led_fsm->add_timed_transition(&state_orange, &state_red,       800,  NULL);
+  led_fsm->add_timed_transition(&state_red,    &state_orangered, 5000,  NULL);
+  led_fsm->add_timed_transition(&state_orangered, &state_green,  400, NULL);
 }
-*/
 
-/*
-void main_loop() {  
-  int asked_type[3] = {c_type_ON, c_type_ON, c_type_ON};
-  if (loop_cnt == 0 || (WakeUp && ButtonReleased)){
-    Serial.println("first_loop");
-    loop_cnt = 0;
-    ButtonReleased = false;
-    WakeUp = false;
-    // Validate LED     
-    asked_type[0] = c_type_ON;
-    asked_type[1] = c_type_ON;
-    asked_type[2] = c_type_ON;
-    avance_allumage(asked_type);
-    
-    asked_type[0] = c_type_OFF;
-    asked_type[1] = c_type_OFF;
-    asked_type[2] = c_type_OFF;
-    avance_allumage(asked_type);
-  }else{
-    if(loop_cnt>5){
-      Serial.println("Goto sleep");
-      sleep_fct();
-    }
-    if (ButtonReleased && !WakeUp){
-      current_mode = (current_mode + 1) % 4;
-      ButtonReleased = false;
-    }
-    switch (current_mode){
-      case 0:
-        asked_type[2] = c_type_OFF;
-        asked_type[1] = c_type_OFF;
-        asked_type[0] = c_type_ON;
-        avance_allumage(asked_type);
-        
-        asked_type[2] = c_type_OFF;
-        asked_type[1] = c_type_ON;
-        asked_type[0] = c_type_OFF;
-        avance_allumage(asked_type);
-      
-        asked_type[2] = c_type_ON;
-        asked_type[1] = c_type_OFF;
-        asked_type[0] = c_type_OFF;
-        avance_allumage(asked_type);
-        break;
-      case 1:
-        asked_type[2] = c_type_OFF;
-        asked_type[1] = c_type_BLINK;
-        asked_type[0] = c_type_OFF;
-        avance_allumage(asked_type);
-        break;      
-      case 2:
-        asked_type[2] = c_type_OFF;
-        asked_type[1] = c_type_OFF;
-        asked_type[0] = c_type_ON;
-        avance_allumage(asked_type);
-        
-        asked_type[2] = c_type_OFF;
-        asked_type[1] = c_type_ON;
-        asked_type[0] = c_type_OFF;
-        avance_allumage(asked_type);
-      
-        asked_type[2] = c_type_ON;
-        asked_type[0] = c_type_OFF;
-        asked_type[1] = c_type_OFF;
-        avance_allumage(asked_type);
-        
-        asked_type[2] = c_type_ON;
-        asked_type[1] = c_type_ON;
-        asked_type[0] = c_type_OFF;
-        avance_allumage(asked_type);
-        break;
-      case 3:
-        random_light(asked_type);
-        avance_allumage(asked_type);
-        break;
-    }
+void modeTravaux(){
+  all_off_enter();
+  delete led_fsm;
+  led_fsm = new Fsm(&state_orange);
+  led_fsm->add_timed_transition(&state_orange, &state_all_off, 800, NULL);
+  led_fsm->add_timed_transition(&state_all_off, &state_orange, 800, NULL);
+}
+
+void modeRandom(){
+  all_off_enter();
+  delete led_fsm;
+  led_fsm = new Fsm(&state_random);
+  led_fsm->add_timed_transition(&state_random, &state_random,  1000, NULL);
+}
+
+void change_mode(){
+  Serial.println("change_mode START");
+  switch (current_mode){
+    case 0:
+      modeTravaux();
+      current_mode=1;
+      break;
+    case 1:
+      modeCh();
+      current_mode=2;
+      break;
+    case 2:
+      modeRandom();
+      current_mode=3;
+      break;
+    case 3:
+      modeFr();
+      current_mode=0;
+      break;
   }
-  loop_cnt = loop_cnt + 1;
-  
-  Serial.println("main_loop END");
+  ButtonReleased = false;
+  Serial.println(current_mode);
+  Serial.println("change_mode END");
 }
-*/
+
+void press_button() {
+  if (digitalRead(c_interruptPin) == HIGH && !ButtonReleased){
+    ButtonReleased = true;
+    change_mode();
+    Serial.println("ButtonReleased");
+  } 
+  Serial.println("press_button END");
+}
 
 void setup() {
   Serial.begin(115200);
@@ -280,8 +217,6 @@ void setup() {
 
   pinMode(c_interruptPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(c_interruptPin), press_button, CHANGE);
-  // pinMode(13, OUTPUT);
-  // digitalWrite(13, LOW);
 
   randomSeed(analogRead(0));
   
@@ -289,6 +224,7 @@ void setup() {
   loop_cnt = 0;
   ButtonReleased = false;
 
+  led_fsm = new Fsm(&state_green);
   //Low power configuration
   /*
   wifi_fpm_open();
@@ -304,5 +240,5 @@ void setup() {
 }
 
 void loop() {
-  led_fsm.run_machine();
+  led_fsm->run_machine();
 }
