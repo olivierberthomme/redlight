@@ -10,6 +10,9 @@
 //int c_LED_pin[3] = {3, 4, 5};
 
 // WeMos
+//  c_LED_pin[0] > GREEN
+//  c_LED_pin[1] > ORANGE
+//  c_LED_pin[2] > RED
 const int c_LED_pin[3] = {D2, D3, D4};
 
 /* Types d'allumage :
@@ -31,6 +34,45 @@ const int c_interruptPin = D1;
 volatile byte ButtonReleased = false;
 volatile byte WakeUp         = false;
 
+// LED control
+// ---------- GREEN ----------
+void green_enter() {
+    digitalWrite(c_LED_pin[0], HIGH); 
+}
+void green_exit() {
+    digitalWrite(c_LED_pin[0], LOW); 
+}
+// ---------- ORANGE----------
+void orange_enter() {
+    digitalWrite(c_LED_pin[1], HIGH); 
+}
+void orange_exit() {
+    digitalWrite(c_LED_pin[1], LOW); 
+}
+// ---------- RED  -----------
+void red_enter() {
+    digitalWrite(c_LED_pin[2], HIGH); 
+}
+void red_exit() {
+    digitalWrite(c_LED_pin[2], LOW); 
+}
+// ------- ORANGE/RED --------
+void orangered_enter() {
+    digitalWrite(c_LED_pin[1], HIGH); 
+    digitalWrite(c_LED_pin[2], HIGH); 
+}
+void orangered_exit() {
+    digitalWrite(c_LED_pin[1], LOW); 
+    digitalWrite(c_LED_pin[2], LOW); 
+}
+
+// State machine
+State state_green(&green_enter,NULL,&green_exit);
+State state_orange(&orange_enter,NULL,&orange_exit);
+State state_red(&red_enter,NULL,&red_exit);
+State state_orangered(&orangered_enter,NULL,&orangered_exit);
+Fsm led_fsm(&state_green);
+
 /* Mode :
  *  - 0 Tricolore _fr
  *  - 1 Travaux
@@ -39,10 +81,6 @@ volatile byte WakeUp         = false;
  */
 int current_mode = 0;
 int loop_cnt = 0;
-
-void main_loop();
-
-Ticker main_loop_tick(main_loop, 5000, 0, MILLIS);;
 
 void press_button() {
   if (digitalRead(c_interruptPin) == HIGH && !ButtonReleased){
@@ -59,7 +97,45 @@ void random_light(int Type_LED[]){
   }
 }
 
+void sleep_fct(){
+  Serial.println("sleep_fct START");
+  // int asked_type[3]={c_type_ON, c_type_ON, c_type_ON};
+  // // going down LED  
+  // asked_type[2] = c_type_ON;
+  // asked_type[1] = c_type_OFF;
+  // asked_type[0] = c_type_OFF;
+  // avance_allumage(asked_type);
+  // asked_type[2] = c_type_OFF;
+  // asked_type[1] = c_type_ON;
+  // asked_type[0] = c_type_OFF;
+  // avance_allumage(asked_type);
+  // asked_type[2] = c_type_OFF;
+  // asked_type[1] = c_type_OFF;
+  // asked_type[0] = c_type_ON;
+  // avance_allumage(asked_type);
+  // asked_type[2] = c_type_OFF;
+  // asked_type[1] = c_type_OFF;
+  // asked_type[0] = c_type_OFF;
+  // avance_allumage(asked_type);
 
+  Serial.println("Going to sleep forever...");
+  //system_deep_sleep_set_option(4);
+  //delay(200);
+  //system_deep_sleep(0);
+  Serial.println("Going into deep sleep for 20 seconds");
+  ESP.deepSleep(10e6); // 20e6 is 20 microseconds
+
+  // Jamais ici
+  Serial.println("sleep_fct END");
+}
+
+void modeFr(){
+  led_fsm.add_timed_transition(&state_green,  &state_orange, 1000, NULL);
+  led_fsm.add_timed_transition(&state_orange, &state_red,    500,  NULL);
+  led_fsm.add_timed_transition(&state_red,    &state_green,  1000, NULL);
+}
+
+/*
 void avance_allumage(int Type_LED[]){
   Serial.println("avance_allumage START");
   //while(!ButtonReleased){
@@ -104,39 +180,9 @@ void avance_allumage(int Type_LED[]){
   }  
   Serial.println("avance_allumage END");
 }
+*/
 
-void sleep_fct(){
-    Serial.println("sleep_fct START");
-    int asked_type[3]={c_type_ON, c_type_ON, c_type_ON};
-    // going down LED  
-    asked_type[2] = c_type_ON;
-    asked_type[1] = c_type_OFF;
-    asked_type[0] = c_type_OFF;
-    avance_allumage(asked_type);
-    asked_type[2] = c_type_OFF;
-    asked_type[1] = c_type_ON;
-    asked_type[0] = c_type_OFF;
-    avance_allumage(asked_type);
-    asked_type[2] = c_type_OFF;
-    asked_type[1] = c_type_OFF;
-    asked_type[0] = c_type_ON;
-    avance_allumage(asked_type);
-    asked_type[2] = c_type_OFF;
-    asked_type[1] = c_type_OFF;
-    asked_type[0] = c_type_OFF;
-    avance_allumage(asked_type);
-    
-    Serial.println("Going to sleep forever...");
-    //system_deep_sleep_set_option(4);
-    //delay(200);
-    //system_deep_sleep(0);
-    Serial.println("Going into deep sleep for 20 seconds");
-    ESP.deepSleep(10e6); // 20e6 is 20 microseconds
-
-    // Jamais ici
-    Serial.println("sleep_fct END");
-}
-
+/*
 void main_loop() {  
   int asked_type[3] = {c_type_ON, c_type_ON, c_type_ON};
   if (loop_cnt == 0 || (WakeUp && ButtonReleased)){
@@ -217,28 +263,27 @@ void main_loop() {
   
   Serial.println("main_loop END");
 }
+*/
 
 void setup() {
   Serial.begin(115200);
   Serial.setTimeout(2000);
   while (!Serial) {
-  ; // wait for serial port to connect. Needed for native USB port only
+    ; // wait for serial port to connect. Needed for native USB port only
   }
   Serial.println("   ");
   Serial.println("Hello World");
 
-  
   pinMode(c_LED_pin[0], OUTPUT);
   pinMode(c_LED_pin[1], OUTPUT);
   pinMode(c_LED_pin[2], OUTPUT);
+
   pinMode(c_interruptPin, INPUT_PULLUP);
-
   attachInterrupt(digitalPinToInterrupt(c_interruptPin), press_button, CHANGE);
-  
-  randomSeed(analogRead(0));
+  // pinMode(13, OUTPUT);
+  // digitalWrite(13, LOW);
 
-  pinMode(13, OUTPUT);
-  digitalWrite(13, LOW);
+  randomSeed(analogRead(0));
   
   current_mode = 0;
   loop_cnt = 0;
@@ -253,11 +298,11 @@ void setup() {
   */
 
   //Ticker timecontrol = 
-  main_loop_tick.start();
+  modeFr();
   Serial.println("setup END");
 
 }
 
 void loop() {
-  main_loop_tick.update();
+  led_fsm.run_machine();
 }
