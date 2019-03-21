@@ -3,7 +3,6 @@
 #include <Ticker.h>
 #include <Fsm.h>
 
-
 // connect to LED1 to pin 3
 // connect to LED2 to pin 4
 // connect to LED3 to pin 5
@@ -15,15 +14,6 @@
 //  c_LED_pin[2] > RED
 const int c_LED_pin[3] = {D2, D3, D4};
 
-/* Types d'allumage :
- *  - 0 => OFF
- *  - 1 => ON
- *  - 2 => clignote (blink)
- */
-const int c_type_OFF   = 0;
-const int c_type_ON    = 1;
-const int c_type_BLINK = 2;
-
 // Etat actuel des LED
 bool LED_prev[3] = {false, false, false};
 
@@ -34,7 +24,7 @@ const int c_interruptPin = D1;
 const int c_eventModeFSM = 12345;
 volatile byte ButtonReleased = false;
 void release_button();
-Ticker buttonReleaseTicker(release_button, 1000); // in milisecs
+Ticker buttonReleaseTicker(release_button, 800); // in milisecs
 volatile byte WakeUp         = false;
 
 // LED control
@@ -97,6 +87,7 @@ State state_random(&random_enter,NULL,NULL);
 Fsm * led_fsm;
 
 void sleep_fct(){
+  //  TODO //  TODO //  TODO //  TODO //  TODO //  TODO // 
   Serial.println("sleep_fct START");
   // int asked_type[3]={c_type_ON, c_type_ON, c_type_ON};
   // // going down LED  
@@ -117,7 +108,7 @@ void sleep_fct(){
   // asked_type[0] = c_type_OFF;
   // avance_allumage(asked_type);
 
-  Serial.println("Going to sleep forever...");
+  // Serial.println("Going to sleep forever...");
   //system_deep_sleep_set_option(4);
   //delay(200);
   //system_deep_sleep(0);
@@ -170,39 +161,10 @@ State state_travaux(&modeTravaux,NULL,NULL);
 State state_suisse(&modeCh,NULL,NULL);
 State state_random_mode(&modeRandom,NULL,NULL);
 
-int loop_cnt = 0;
-
-// void change_mode(){
-//   Serial.println("change_mode START");
-//   switch (current_mode){
-//     case 0:
-//       modeTravaux();
-//       current_mode=1;
-//       break;
-//     case 1:
-//       modeCh();
-//       current_mode=2;
-//       break;
-//     case 2:
-//       modeRandom();
-//       current_mode=3;
-//       break;
-//     case 3:
-//       modeFr();
-//       current_mode=0;
-//       break;
-//   }
-//   ButtonReleased = false;
-//   Serial.println(current_mode);
-//   Serial.println("change_mode END");
-// }
-
 void press_button() {
   if (digitalRead(c_interruptPin) == HIGH && !ButtonReleased){
     ButtonReleased = true;
-    // change_mode();
-    mode_fsm->trigger(c_eventModeFSM);
-    
+    mode_fsm->trigger(c_eventModeFSM);    
     buttonReleaseTicker.start();
     Serial.println("ButtonReleased");
   } 
@@ -233,19 +195,16 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(c_interruptPin), press_button, CHANGE);
 
   randomSeed(analogRead(0));
-  modeFr();
 
   mode_fsm = new Fsm(&state_francais);
+  modeFr();
   mode_fsm->add_transition(&state_francais,&state_travaux,c_eventModeFSM,NULL);
   mode_fsm->add_transition(&state_travaux,&state_suisse,c_eventModeFSM,NULL);
   mode_fsm->add_transition(&state_suisse,&state_random_mode,c_eventModeFSM,NULL);
   mode_fsm->add_transition(&state_random_mode,&state_francais,c_eventModeFSM,NULL);
 
-  // current_mode = 0;
-  loop_cnt = 0;
   ButtonReleased = false;
 
-  // led_fsm = new Fsm(&state_green);
   //Low power configuration
   /*
   wifi_fpm_open();
@@ -253,8 +212,6 @@ void setup() {
   delay(200);
   Serial.print("wifi_fpm_do_sleep: ");
   */
-
-  // modeFr();
   Serial.println("setup END");
 }
 
