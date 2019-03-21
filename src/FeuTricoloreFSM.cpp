@@ -31,7 +31,10 @@ bool LED_prev[3] = {false, false, false};
 //const byte c_interruptPin = 2;
 // WeMos
 const int c_interruptPin = D1;
+const int c_eventModeFSM = 12345;
 volatile byte ButtonReleased = false;
+void release_button();
+Ticker buttonReleaseTicker(release_button, 1000); // in milisecs
 volatile byte WakeUp         = false;
 
 // LED control
@@ -84,7 +87,7 @@ void random_enter() {
   }
 }
 
-// State machine
+// LED state machine
 State state_all_off(&all_off_enter,NULL,NULL);
 State state_green(&green_enter,NULL,&green_exit);
 State state_orange(&orange_enter,NULL,&orange_exit);
@@ -92,15 +95,6 @@ State state_red(&red_enter,NULL,&red_exit);
 State state_orangered(&orangered_enter,NULL,&orangered_exit);
 State state_random(&random_enter,NULL,NULL);
 Fsm * led_fsm;
-
-/* Mode :
- *  - 0 Tricolore _fr
- *  - 1 Travaux
- *  - 2 Tricolore _ch
- *  - 3 Random
- */
-int current_mode = 0;
-int loop_cnt = 0;
 
 void sleep_fct(){
   Serial.println("sleep_fct START");
@@ -168,38 +162,58 @@ void modeRandom(){
   led_fsm->add_timed_transition(&state_random, &state_random,  1000, NULL);
 }
 
-void change_mode(){
-  Serial.println("change_mode START");
-  switch (current_mode){
-    case 0:
-      modeTravaux();
-      current_mode=1;
-      break;
-    case 1:
-      modeCh();
-      current_mode=2;
-      break;
-    case 2:
-      modeRandom();
-      current_mode=3;
-      break;
-    case 3:
-      modeFr();
-      current_mode=0;
-      break;
-  }
-  ButtonReleased = false;
-  Serial.println(current_mode);
-  Serial.println("change_mode END");
-}
+Fsm * mode_fsm;
+
+// mode state machine
+State state_francais(&modeFr,NULL,NULL);
+State state_travaux(&modeTravaux,NULL,NULL);
+State state_suisse(&modeCh,NULL,NULL);
+State state_random_mode(&modeRandom,NULL,NULL);
+
+int loop_cnt = 0;
+
+// void change_mode(){
+//   Serial.println("change_mode START");
+//   switch (current_mode){
+//     case 0:
+//       modeTravaux();
+//       current_mode=1;
+//       break;
+//     case 1:
+//       modeCh();
+//       current_mode=2;
+//       break;
+//     case 2:
+//       modeRandom();
+//       current_mode=3;
+//       break;
+//     case 3:
+//       modeFr();
+//       current_mode=0;
+//       break;
+//   }
+//   ButtonReleased = false;
+//   Serial.println(current_mode);
+//   Serial.println("change_mode END");
+// }
 
 void press_button() {
   if (digitalRead(c_interruptPin) == HIGH && !ButtonReleased){
     ButtonReleased = true;
-    change_mode();
+    // change_mode();
+    mode_fsm->trigger(c_eventModeFSM);
+    
+    buttonReleaseTicker.start();
     Serial.println("ButtonReleased");
   } 
   Serial.println("press_button END");
+}
+
+void release_button() {
+  Serial.println("release_button START");
+  ButtonReleased = false;
+  buttonReleaseTicker.stop();
+  Serial.println("release_button END");
 }
 
 void setup() {
@@ -219,12 +233,19 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(c_interruptPin), press_button, CHANGE);
 
   randomSeed(analogRead(0));
-  
-  current_mode = 0;
+  modeFr();
+
+  mode_fsm = new Fsm(&state_francais);
+  mode_fsm->add_transition(&state_francais,&state_travaux,c_eventModeFSM,NULL);
+  mode_fsm->add_transition(&state_travaux,&state_suisse,c_eventModeFSM,NULL);
+  mode_fsm->add_transition(&state_suisse,&state_random_mode,c_eventModeFSM,NULL);
+  mode_fsm->add_transition(&state_random_mode,&state_francais,c_eventModeFSM,NULL);
+
+  // current_mode = 0;
   loop_cnt = 0;
   ButtonReleased = false;
 
-  led_fsm = new Fsm(&state_green);
+  // led_fsm = new Fsm(&state_green);
   //Low power configuration
   /*
   wifi_fpm_open();
@@ -233,12 +254,12 @@ void setup() {
   Serial.print("wifi_fpm_do_sleep: ");
   */
 
-  //Ticker timecontrol = 
-  modeFr();
+  // modeFr();
   Serial.println("setup END");
-
 }
 
 void loop() {
   led_fsm->run_machine();
+  mode_fsm->run_machine();
+  buttonReleaseTicker.update();
 }
